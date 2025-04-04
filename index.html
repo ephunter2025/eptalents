@@ -6,6 +6,7 @@
   <title>EPTalent Database</title>
   <link rel="stylesheet" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" />
   <link rel="stylesheet" href="https://cdn.datatables.net/fixedheader/3.3.2/css/fixedHeader.dataTables.min.css" />
+  <link rel="stylesheet" href="https://cdn.datatables.net/fixedcolumns/4.2.2/css/fixedColumns.dataTables.min.css" />
   <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.3.6/css/buttons.dataTables.min.css" />
   <style>
     body {
@@ -138,6 +139,9 @@
 <div id="main-content" style="display:none">
 <h1>EPTalent Database</h1>
 
+<div style="text-align: right; margin-bottom: 10px;">
+  <button onclick="logout()" style="background-color:#d9534f; color:white; border:none; border-radius:999px; padding:6px 12px; font-size:11px; cursor:pointer;">Logout</button>
+</div>
 <div id="controls">
   <button id="download-btn">Download to Excel</button>
   <select id="filter-pendidikan" title="Filter berdasarkan jenjang pendidikan terakhir kandidat">
@@ -168,6 +172,7 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.datatables.net/fixedcolumns/4.2.2/js/dataTables.fixedColumns.min.js"></script>
 <script src="https://cdn.datatables.net/fixedheader/3.3.2/js/dataTables.fixedHeader.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
@@ -185,6 +190,7 @@
     const u = document.getElementById("username").value;
     const p = document.getElementById("password").value;
     if (users[u] && users[u] === p) {
+      localStorage.setItem("loggedIn", "true");
       document.getElementById("login-screen").style.display = "none";
       document.getElementById("main-content").style.display = "block";
       init();
@@ -207,15 +213,22 @@
   }
 
   function showInfo(data) {
-    const columns = Object.keys(data[0]).map(key => {
+    const columns = [{
+      title: '<input type="checkbox" id="select-all" />',
+      data: null,
+      orderable: false,
+      render: (data, type, row, meta) => `<input type='checkbox' class='row-select' data-index='${meta.row}' />`
+    }];
+
+    Object.keys(data[0]).forEach(key => {
       if (key === 'Alamat Saat ini') {
-        return {
+        columns.push({
           title: key,
           data: key,
           render: (data) => `<span class="truncate" title="${data}">${data}</span>`
-        };
+        });
       } else {
-        return { title: key, data: key };
+        columns.push({ title: key, data: key });
       }
     });
 
@@ -226,24 +239,52 @@
     });
 
     const table = $('#sheet-data').DataTable({
+      fixedHeader: {
+        header: true,
+        headerOffset: 60
+      },
+      fixedColumns: {
+        leftColumns: 1
+      },
       data,
       columns,
-      scrollY: "500px",
+      columnDefs: [{ targets: 0, className: 'dt-center' }],
+      scrollY: 'calc(100vh - 250px)',
       scrollX: true,
       scrollCollapse: true,
       paging: true,
       pageLength: 10,
-      fixedHeader: true,
       dom: 'Blfrtip',
-      buttons: [{
-        extend: 'excelHtml5',
-        text: 'Download to Excel',
-        title: 'EPTalent Database'
-      }]
+      buttons: []
     });
 
     document.getElementById('download-btn').addEventListener('click', () => {
-      table.button('.buttons-excel').trigger();
+      const selectedIndexes = [];
+      document.querySelectorAll('.row-select:checked').forEach(cb => {
+        selectedIndexes.push(parseInt(cb.dataset.index));
+      });
+
+      if (selectedIndexes.length === 0) {
+        alert("Silakan pilih minimal satu baris untuk diunduh.");
+        return;
+      }
+
+      const selectedData = selectedIndexes.map(i => table.row(i).data());
+      const exportColumns = columns.slice(1).map(c => c.title);
+
+      const csvContent = [exportColumns.join(",")].concat(
+        selectedData.map(row => exportColumns.map(key => `"${(row[key] || '').replace(/"/g, '""')}"`).join(","))
+      ).join("\n");
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "EPTalent_Database_Selected.csv";
+      link.click();
+    });
+
+    $(document).on('change', '#select-all', function() {
+      $('.row-select').prop('checked', this.checked);
     });
 
     setupFilter(data, 'Pendidikan', '#filter-pendidikan', columns, table);
@@ -260,6 +301,17 @@
     $(selector).on('change', function () {
       table.column(columns.findIndex(c => c.title === colName)).search(this.value).draw();
     });
+  }
+
+  if (localStorage.getItem("loggedIn") === "true") {
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("main-content").style.display = "block";
+    init();
+  }
+
+  function logout() {
+    localStorage.removeItem("loggedIn");
+    location.reload();
   }
 </script>
 </body>
