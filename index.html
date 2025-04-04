@@ -181,7 +181,6 @@
 <script>
 const CSV_URL = "https://docs.google.com/spreadsheets/d/1uyi8ChwHspcS7CNY_pmUqsxw0Emp9wy5gPFnEZYFnYc/gviz/tq?tqx=out:csv&gid=0";
 const users = { ephunter: "ephunter", marsha: "marsha2025" };
-const actionStatus = JSON.parse(localStorage.getItem('actionStatus') || '{}');
 
 function login() {
   const u = document.getElementById("username").value;
@@ -229,43 +228,23 @@ function renderTable(data) {
     }
   ];
 
-  data.forEach((row, i) => {
-    if (row['Upload CV']) {
-      row['Upload CV'] = `<a href="${row['Upload CV']}" target="_blank">Download CV</a>`;
-    }
-  });
-
   Object.keys(data[0]).forEach(key => {
-    columns.push(
+    if (key !== 'Action' && key !== '__savedAction' && key !== 'Riwayat Proses') {
+      columns.push(
       key === 'Alamat Saat ini'
         ? {
             title: key,
             data: key,
             render: (data) => `<span class="truncate" title="${data}">${data}</span>`
           }
+        : key === 'Upload CV'
+        ? {
+            title: key,
+            data: key,
+            render: (data) => data ? `<a href="${data}" target="_blank">Lihat CV</a>` : ''
+          }
         : { title: key, data: key }
     );
-    if (key === 'Upload CV') {
-      columns.push({
-        title: 'Action',
-        data: null,
-        orderable: false,
-        render: (data, type, row, meta) => {
-          const selected = actionStatus[meta.row] || "";
-          return `
-            <select class='action-dropdown' style='width:110px; font-size:9px;'>
-              <option value="" ${selected === "" ? "selected" : ""}>- Pilih -</option>
-              <option value="screening" ${selected === "screening" ? "selected" : ""}>🟡 Screening</option>
-              <option value="interview" ${selected === "interview" ? "selected" : ""}>🟠 Interview</option>
-              <option value="submit" ${selected === "submit" ? "selected" : ""}>🟢 Submit Klien</option>
-              <option value="interview_client" ${selected === "interview_client" ? "selected" : ""}>🔵 Interview Client</option>
-              <option value="offering" ${selected === "offering" ? "selected" : ""}>🟦 Offering Letter</option>
-              <option value="join" ${selected === "join" ? "selected" : ""}>🟩 Join</option>
-              <option value="cancel" ${selected === "cancel" ? "selected" : ""}>🔴 Cancel Client</option>
-            </select>
-          `;
-        }
-      });
     }
   });
 
@@ -287,15 +266,13 @@ function renderTable(data) {
   $('#download-btn').on('click', () => {
     const selectedIndexes = $('.row-select:checked').map((_, cb) => parseInt(cb.dataset.index)).get();
     if (selectedIndexes.length === 0) return alert("Silakan pilih minimal satu baris untuk diunduh.");
-    const selectedData = selectedIndexes.map(i => {
-      const row = table.row(i).data();
-      return { ...row, 'Riwayat Proses': actionStatus[i] || '' };
-    });
-    const exportColumns = columns.slice(1).map(c => c.title).filter(title => title !== 'Action');
-    exportColumns.push('Riwayat Proses');
+    const selectedData = selectedIndexes.map(i => table.row(i).data());
+    const exportColumns = columns.slice(1).map(c => c.title);
+
     const csv = [exportColumns.join(",")].concat(
       selectedData.map(row => exportColumns.map(key => `"${(row[key] || '').replace(/"/g, '""')}"`).join(","))
     ).join("\n");
+
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
@@ -305,12 +282,6 @@ function renderTable(data) {
 
   $('#select-all').on('change', function() {
     $('.row-select').prop('checked', this.checked);
-  });
-
-  $(document).on('change', '.action-dropdown', function() {
-    const rowIndex = $(this).closest('tr').index();
-    actionStatus[rowIndex] = $(this).val();
-    localStorage.setItem('actionStatus', JSON.stringify(actionStatus));
   });
 
   setupFilter(data, 'Pendidikan', '#filter-pendidikan', columns, table);
