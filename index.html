@@ -147,8 +147,8 @@
   <select id="filter-pendidikan" title="Filter berdasarkan jenjang pendidikan terakhir kandidat">
     <option value="">Pendidikan</option>
   </select>
-  <select id="filter-posisi" title="Filter berdasarkan posisi terakhir yang pernah dijabat">
-    <option value="">Posisi Terakhir</option>
+  <select id="filter-timestamp" title="Filter berdasarkan tanggal pengisian data (DD-MM-YYYY)">
+    <option value="">Tanggal</option>
   </select>
   <select id="filter-level" title="Filter berdasarkan tingkatan posisi terakhir kandidat">
     <option value="">Level Posisi</option>
@@ -237,6 +237,18 @@ function renderTable(data) {
             data: key,
             render: (data) => `<span class="truncate" title="${data}">${data}</span>`
           }
+        : key === 'Timestamp'
+        ? {
+            title: key,
+            data: key,
+            render: (data) => {
+              const date = new Date(data);
+              const day = String(date.getDate()).padStart(2, '0');
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const year = date.getFullYear();
+              return `${day}-${month}-${year}`;
+            }
+          }
         : key === 'Upload CV'
         ? {
             title: key,
@@ -285,7 +297,17 @@ function renderTable(data) {
   });
 
   setupFilter(data, 'Pendidikan', '#filter-pendidikan', columns, table);
-  setupFilter(data, 'Posisi Terkahir', '#filter-posisi', columns, table);
+  const formattedTimestamps = [...new Set(data.map(row => {
+    const date = new Date(row['Timestamp']);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${day}-${month}`;
+  }))].sort();
+  formattedTimestamps.forEach(v => $("#filter-timestamp").append(`<option value="${v}">${v}</option>`));
+  $('#filter-timestamp').on('change', function () {
+    const idx = columns.findIndex(c => c.title === 'Timestamp');
+    table.column(idx).search(this.value).draw();
+  });
   setupFilter(data, 'Level Posisi', '#filter-level', columns, table);
   setupFilter(data, 'Posisi dilamar', '#filter-dilamar', columns, table);
 }
