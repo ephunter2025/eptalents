@@ -196,19 +196,30 @@ function login() {
   }
 }
 
+if (localStorage.getItem("loggedIn") === "true") {
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("main-content").style.display = "block";
+  init();
+}
+
+function logout() {
+  localStorage.removeItem("loggedIn");
+  location.reload();
+}
+
 function init() {
   fetch(CSV_URL)
     .then(res => res.text())
     .then(csv => {
       const parsed = Papa.parse(csv, { header: true, skipEmptyLines: true });
-      showInfo(parsed.data);
+      renderTable(parsed.data);
     })
     .catch(err => {
       alert("Gagal memuat data: " + err);
     });
 }
 
-function showInfo(data) {
+function renderTable(data) {
   const columns = [
     {
       title: '<input type="checkbox" id="select-all" />',
@@ -219,27 +230,28 @@ function showInfo(data) {
   ];
 
   data.forEach((row, i) => {
-    if (actionStatus[i]) row.__savedAction = actionStatus[i];
     if (row['Upload CV']) {
       row['Upload CV'] = `<a href="${row['Upload CV']}" target="_blank">Download CV</a>`;
     }
   });
 
   Object.keys(data[0]).forEach(key => {
-    if (key === 'Alamat Saat ini') {
-      columns.push({
-        title: key,
-        data: key,
-        render: (data) => `<span class="truncate" title="${data}">${data}</span>`
-      });
-    } else if (key === 'Upload CV') {
-      columns.push({ title: key, data: key });
+    columns.push(
+      key === 'Alamat Saat ini'
+        ? {
+            title: key,
+            data: key,
+            render: (data) => `<span class="truncate" title="${data}">${data}</span>`
+          }
+        : { title: key, data: key }
+    );
+    if (key === 'Upload CV') {
       columns.push({
         title: 'Action',
         data: null,
         orderable: false,
         render: (data, type, row, meta) => {
-          const selected = row.__savedAction || "";
+          const selected = actionStatus[meta.row] || "";
           return `
             <select class='action-dropdown' style='width:110px; font-size:9px;'>
               <option value="" ${selected === "" ? "selected" : ""}>- Pilih -</option>
@@ -254,23 +266,14 @@ function showInfo(data) {
           `;
         }
       });
-    } else if (key === '__savedAction') {
-      columns.push({
-        title: 'Riwayat Proses',
-        data: key,
-        render: data => data || '',
-        createdCell: (td) => td.style.backgroundColor = '#fff8c4'
-      });
-    } else {
-      columns.push({ title: key, data: key });
     }
   });
 
   const table = $('#sheet-data').DataTable({
-    fixedHeader: { header: true, headerOffset: 60 },
-    fixedColumns: { leftColumns: 1 },
     data,
     columns,
+    fixedHeader: { header: true, headerOffset: 60 },
+    fixedColumns: { leftColumns: 1 },
     columnDefs: [{ targets: 0, className: 'dt-center' }],
     scrollY: 'calc(100vh - 250px)',
     scrollX: true,
@@ -284,8 +287,12 @@ function showInfo(data) {
   $('#download-btn').on('click', () => {
     const selectedIndexes = $('.row-select:checked').map((_, cb) => parseInt(cb.dataset.index)).get();
     if (selectedIndexes.length === 0) return alert("Silakan pilih minimal satu baris untuk diunduh.");
-    const selectedData = selectedIndexes.map(i => table.row(i).data());
-    const exportColumns = columns.slice(1).map(c => c.title);
+    const selectedData = selectedIndexes.map(i => {
+      const row = table.row(i).data();
+      return { ...row, 'Riwayat Proses': actionStatus[i] || '' };
+    });
+    const exportColumns = columns.slice(1).map(c => c.title).filter(title => title !== 'Action');
+    exportColumns.push('Riwayat Proses');
     const csv = [exportColumns.join(",")].concat(
       selectedData.map(row => exportColumns.map(key => `"${(row[key] || '').replace(/"/g, '""')}"`).join(","))
     ).join("\n");
@@ -300,16 +307,16 @@ function showInfo(data) {
     $('.row-select').prop('checked', this.checked);
   });
 
-  setupFilter(data, 'Pendidikan', '#filter-pendidikan', columns, table);
-  setupFilter(data, 'Posisi Terkahir', '#filter-posisi', columns, table);
-  setupFilter(data, 'Level Posisi', '#filter-level', columns, table);
-  setupFilter(data, 'Posisi dilamar', '#filter-dilamar', columns, table);
-
   $(document).on('change', '.action-dropdown', function() {
     const rowIndex = $(this).closest('tr').index();
     actionStatus[rowIndex] = $(this).val();
     localStorage.setItem('actionStatus', JSON.stringify(actionStatus));
   });
+
+  setupFilter(data, 'Pendidikan', '#filter-pendidikan', columns, table);
+  setupFilter(data, 'Posisi Terkahir', '#filter-posisi', columns, table);
+  setupFilter(data, 'Level Posisi', '#filter-level', columns, table);
+  setupFilter(data, 'Posisi dilamar', '#filter-dilamar', columns, table);
 }
 
 function setupFilter(data, colName, selector, columns, table) {
@@ -319,17 +326,6 @@ function setupFilter(data, colName, selector, columns, table) {
     const idx = columns.findIndex(c => c.title === colName);
     table.column(idx).search(this.value).draw();
   });
-}
-
-if (localStorage.getItem("loggedIn") === "true") {
-  document.getElementById("login-screen").style.display = "none";
-  document.getElementById("main-content").style.display = "block";
-  init();
-}
-
-function logout() {
-  localStorage.removeItem("loggedIn");
-  location.reload();
 }
 </script>
 </body>
