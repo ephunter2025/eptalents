@@ -331,11 +331,16 @@ function renderTable(data) {
 
   setupFilter(data, 'Pendidikan', '#filter-pendidikan', columns, table);
   const formattedTimestamps = [...new Set(data.map(row => {
-    const date = new Date(row['Timestamp']);
-    const day = String(date.getDate()).padStart(2, '0');
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    return `${day}-${month}`;
-  }))].sort();
+      data.map(row => {
+        const raw = row['Timestamp'];
+        if (!raw || typeof raw !== "string") return null;
+        const [datePart] = raw.split(" ");
+        if (!datePart) return null;
+        const [day, month] = datePart.split("/");
+        if (!day || !month) return null;
+        return `${day}-${month}`;
+      }).filter(Boolean)
+    )].sort();
   formattedTimestamps.forEach(v => $("#filter-timestamp").append(`<option value="${v}">${v}</option>`));
   $('#filter-timestamp').on('change', function () {
     const idx = columns.findIndex(c => c.title === 'Timestamp');
